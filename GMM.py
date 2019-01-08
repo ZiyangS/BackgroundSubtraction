@@ -4,34 +4,37 @@ import os
 import time
 
 # initial Covariance matrix
-init_sigma=225*np.eye(3)
-init_u=None
-init_alpha=0.01
+init_sigma = 225*np.eye(3)
+init_u = None
+init_alpha = 0.01
 # prevent deviding 0 for stability
-epsilon=0.00000001
+epsilon = 0.00000001
 
 class Gaussian():
-    def __init__(self,u,sigma):
-        self.u=u
-        self.sigma=sigma
+    def __init__(self, u, sigma):
+        self.u = u
+        self.sigma = sigma
+
 
 class GaussianMat():
-    def __init__(self,shape,k):
-        self.shape=shape
-        self.k=k
+    def __init__(self, shape, k):
+        self.shape = shape
+        self.k = k
         # initialize Gaussian distribution
-        g= np.array([Gaussian(init_u,init_sigma) for i in range(k)])
-        self.mat= np.array([[[Gaussian(init_u,init_sigma) for i in range(k)] for j in range(shape[1])]for l in range(shape[0])])
+        g = np.array([Gaussian(init_u, init_sigma) for i in range(k)])
+        self.mat = np.array([[[Gaussian(init_u, init_sigma) for i in range(k)] for j in range(shape[1])]
+                             for l in range(shape[0])])
         # intialize weight, it could be [1,0,0,0]，but we choose [0.7,0.1,0.1,0.1] for stability
-        self.weight = np.array([[[0.7,0.1,0.1,0.1] for j in range(shape[1])] for l in range(shape[0])])
+        self.weight = np.array([[[0.7, 0.1, 0.1, 0.1] for j in range(shape[1])] for l in range(shape[0])])
+
 
 class GMM():
-    def __init__(self,data_dir,train_num,alpha=init_alpha):
-        self.data_dir=data_dir
-        self.train_num=train_num
-        self.alpha=alpha
-        self.g_mat=None
-        self.K=None
+    def __init__(self, data_dir, train_num, alpha=init_alpha):
+        self.data_dir = data_dir
+        self.train_num = train_num
+        self.alpha = alpha
+        self.g_mat = None
+        self.K = None
 
     def check(self, pixel, gaussian):
         '''
@@ -48,16 +51,19 @@ class GMM():
         else:
             return False
 
-    def train(self,K=4):
-        self.K=K
-        file_list=[]
+    def train(self, K=4):
+        '''
+        train model
+        '''
+        self.K = K
+        file_list = []
         # file numbers are from 0 to 199
         for i in range(self.train_num):
-            file_name=os.path.join(self.data_dir,'b%05d'%i+'.bmp')
+            file_name = os.path.join(self.data_dir, 'b%05d'%i + '.bmp')
             file_list.append(file_name)
-        img_init=cv.imread(file_list[0])
-        img_shape=img_init.shape
-        self.g_mat=GaussianMat(img_shape,K)
+        img_init = cv.imread(file_list[0])
+        img_shape = img_init.shape
+        self.g_mat = GaussianMat(img_shape, K)
         for i in range(img_shape[0]):
             for j in range(img_shape[1]):
                 for k in range(self.K):
@@ -66,7 +72,7 @@ class GMM():
             print('u:{}'.format(self.g_mat.mat[10][10][i].u))
         # update process
         for file in file_list:
-            print('processing:{}'.format(file))
+            print('training:{}'.format(file))
             img=cv.imread(file)
             for i in range(img.shape[0]):
                 for j in range(img.shape[1]):
@@ -106,9 +112,10 @@ class GMM():
             for i in range(4):
                 print('u:{}'.format(self.g_mat.mat[10][10][i].u))
 
-    def infer(self, img):    #推断图片的背景，如果像素为背景则rgb都设为255，如果不是背景则不进行处理
+    def infer(self, img):
         '''
         infer whether its background or foregound
+        if the pixel is background, both values of rgb will set to 255. Otherwise not change the value
         '''
         result=np.array(img)
         print('img:{}'.format(img[10][10]))
@@ -116,13 +123,22 @@ class GMM():
         for i in range(4):
             print('u:{}'.format(self.g_mat.mat[10][10][i].u))
             print('sigma:{}'.format(self.g_mat.mat[10][10][i].sigma))
+
+        f = open('test.txt', 'w')
         for i in range(img.shape[0]):
             for j in range(img.shape[1]):
-                gaussian_pixel=self.g_mat.mat[i][j]
-                if i%100==0 and j%100==0:
-                    print(self.g_mat.weight[i][j])
+                for k in range(4):
+                    f.write('the weight is %f\n' %self.g_mat.weight[i][j][k])
+                    f.write('the mu is [%f %f %f]\n' % (self.g_mat.mat[i][j][k].u[0][0],
+                            self.g_mat.mat[i][j][k].u[0][1],
+                            self.g_mat.mat[i][j][k].u[0][2]))
+        f.close()
+        for i in range(img.shape[0]):
+            for j in range(img.shape[1]):
+                gaussian_pixel = self.g_mat.mat[i][j]
                 for g in range(4):
-                    if self.check(img[i][j],gaussian_pixel[g]) and self.g_mat.weight[i][j][g]>0.25: #阈值
-                        result[i][j]=[255,255,255]
+                    if self.check(img[i][j], gaussian_pixel[g]) and self.g_mat.weight[i][j][g] > 0.25:
+                        # [255, 255, 255] is white, the background color will be set to white
+                        result[i][j] = [255,255,255]
                         continue
         return result
