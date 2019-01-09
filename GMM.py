@@ -1,8 +1,8 @@
 import numpy as np
 import cv2 as cv
 import os
-import time
-from numpy.linalg import norm
+from numba import jit, njit
+from numpy.linalg import norm, inv
 
 # initial Covariance matrix
 init_sigma = 225*np.eye(3)
@@ -39,7 +39,6 @@ class GMM():
         self.B = None
         self.weight_order = None
 
-
     def check(self, pixel, gaussian):
         '''
         check whether a pixel match a Gaussian distribution. Matching means pixel is less than
@@ -55,7 +54,6 @@ class GMM():
         else:
             return False
 
-
     def train(self, K=4):
         '''
         train model
@@ -69,14 +67,17 @@ class GMM():
         img_init = cv.imread(file_list[0])
         img_shape = img_init.shape
         self.g_mat = GaussianMat(img_shape, K)
-        self.B = np.ones(img_shape[0:2])
-        self.weight_order = np.zeros(self.g_mat.mat.shape)
+        self.B = np.ones(img_shape[0:2], dtype=np.int)
+        self.weight_order = np.zeros(self.g_mat.mat.shape, dtype=np.int)
+
         for i in range(img_shape[0]):
             for j in range(img_shape[1]):
                 for k in range(self.K):
                     self.g_mat.mat[i][j][k].u = np.array(img_init[i][j]).reshape(1,3)
+
         for i in range(self.K):
-            print('u:{}'.format(self.g_mat.mat[10][10][i].u))
+            print('u:{}'.format(self.g_mat.mat[100][100][i].u))
+
         # update process
         for file in file_list:
             print('training:{}'.format(file))
@@ -114,13 +115,11 @@ class GMM():
                     s = sum([self.g_mat.weight[i][j][k] for k in range(K)])
                     for k in range(K):
                         self.g_mat.weight[i][j][k] /= s
-            print('img:{}'.format(img[10][10]))
-            print('weight:{}'.format(self.g_mat.weight[10][10]))
+            print('img:{}'.format(img[100][100]))
+            print('weight:{}'.format(self.g_mat.weight[100][100]))
             self.reorder()
-            time.sleep(5)
             for i in range(self.K):
-                print('u:{}'.format(self.g_mat.mat[10][10][i].u))
-
+                print('u:{}'.format(self.g_mat.mat[100][100][i].u))
 
     def reorder(self, T=0.75):
         '''
@@ -128,12 +127,13 @@ class GMM():
         the first B components are chosen as background components
         the default threshold is 0.75
         '''
+
         for i in range(self.g_mat.shape[0]):
             for j in range(self.g_mat.shape[1]):
                 k_weight = self.g_mat.weight[i][j]
-                k_norm = np.array([norm(self.g_mat.mat[i][j][k].sigma) for k in range(self.K)])
-                # ratio = k_weight/k_norm
-                descending_order = np.argsort(-k_weight/k_norm)
+                k_norm = np.array([norm(np.sqrt(inv(self.g_mat.mat[i][j][k].sigma))) for k in range(self.K)])
+                ratio = k_weight/k_norm
+                descending_order = np.argsort(-ratio)
                 self.weight_order[i][j] = descending_order
                 cum_weight = 0
                 for index, order in enumerate(descending_order):
@@ -142,25 +142,24 @@ class GMM():
                         self.B[i][j] = index + 1
                         break
 
-
     def infer(self, img):
         '''
         infer whether its background or foregound
         if the pixel is background, both values of rgb will set to 255. Otherwise not change the value
         '''
-        result=np.array(img)
-        print('img:{}'.format(img[10][10]))
-        print('weight:{}'.format(self.g_mat.weight[10][10]))
-        for i in range(self.K):
-            print('u:{}'.format(self.g_mat.mat[10][10][i].u))
-            print('sigma:{}'.format(self.g_mat.mat[10][10][i].sigma))
-
+        result = np.array(img)
         for i in range(img.shape[0]):
             for j in range(img.shape[1]):
-                gaussian_pixel = self.g_mat.mat[i][j]
-                for g in range(self.K):
-                    if self.check(img[i][j], gaussian_pixel[g]) and self.g_mat.weight[i][j][g] > 0.25:
+                gaussian_mat = self.g_mat.mat[i][j]
+                for k in range(self.B[i][j]):
+                    if self.check(img[i][j], gaussian_mat[k]):
                         # [255, 255, 255] is white, the background color will be set to white
-                        result[i][j] = [255,255,255]
-                        continue
+                        result[i][j] = [255, 255, 255]
+                        break
+                # gaussian_pixel = self.g_mat.mat[i][j]
+                # for g in range(self.K):
+                #     if self.check(img[i][j], gaussian_pixel[g]) and self.g_mat.weight[i][j][g] > 0.25:
+                #         # [255, 255, 255] is white, the background color will be set to white
+                #         result[i][j] = [255, 255, 255]
+                #         continue
         return result
