@@ -24,7 +24,6 @@ class GMM():
         self.sigma = None
         self.K = None
         self.B = None
-        self.weight_order = None
 
     def check(self, pixel, mu, sigma):
         '''
@@ -60,8 +59,8 @@ class GMM():
                              for i in range(img_shape[0])])
         self.sigma = np.array([[[init_sigma for k in range(self.K)] for j in range(img_shape[1])]
                              for i in range(img_shape[0])])
+
         self.B = np.ones(self.img_shape[0:2], dtype=np.int)
-        self.weight_order = np.zeros(self.mu.shape[0:-1], dtype=np.int)
         for i in range(img_shape[0]):
             for j in range(img_shape[1]):
                 for k in range(self.K):
@@ -120,10 +119,14 @@ class GMM():
         for i in range(self.img_shape[0]):
             for j in range(self.img_shape[1]):
                 k_weight = self.weight[i][j]
-                k_norm = np.array([norm(np.sqrt(inv(self.sigma[i][j][k]))) for k in range(self.K)])
+                k_norm = np.array([norm(np.sqrt(self.sigma[i][j][k])) for k in range(self.K)])
                 ratio = k_weight/k_norm
                 descending_order = np.argsort(-ratio)
-                self.weight_order[i][j] = descending_order
+
+                self.weight[i][j] = self.weight[i][j][descending_order]
+                self.mu[i][j] = self.mu[i][j][descending_order]
+                self.sigma[i][j] = self.sigma[i][j][descending_order]
+
                 cum_weight = 0
                 for index, order in enumerate(descending_order):
                     cum_weight += self.weight[i][j][order]
