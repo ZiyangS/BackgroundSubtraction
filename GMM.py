@@ -2,6 +2,7 @@ import numpy as np
 import cv2 as cv
 import os
 from numpy.linalg import norm, inv
+from scipy.stats import multivariate_normal as mv_norm
 
 init_weight = [0.7, 0.1, 0.1, 0.1]
 init_u = np.zeros(3)
@@ -78,15 +79,15 @@ class GMM():
                     for k in range(K):
                         if self.check(img[i][j], self.mu[i][j][k], self.sigma[i][j][k]):
                             flag = 1
-                            M = 1
-                            self.weight[i][j][k] = self.weight[i][j][k] + self.alpha*(M - self.weight[i][j][k])
-                            u = self.mu[i][j][k]
+                            m = 1
+                            mu = self.mu[i][j][k]
                             sigma = self.sigma[i][j][k]
                             x = img[i][j].astype(np.float)
-                            delta = x - u
-                            self.mu[i][j][k] = u + M*(self.alpha / (self.weight[i][j][k]+epsilon))*delta
-                            self.sigma[i][j][k] = sigma + M*(self.alpha / (self.weight[i][j][k]+epsilon))\
-                                                            *(np.matmul(delta, delta.T)-sigma)
+                            delta = x - mu
+                            rho = self.alpha * mv_norm.pdf(img[i][j], mu, sigma)
+                            self.weight[i][j][k] = self.weight[i][j][k] + self.alpha*(m - self.weight[i][j][k])
+                            self.mu[i][j][k] = mu + rho*delta
+                            self.sigma[i][j][k] = sigma + rho*(np.matmul(delta, delta.T)-sigma)
                         else:
                             m=0
                             self.weight[i][j][k] = self.weight[i][j][k] + self.alpha*(m-self.weight[i][j][k])
