@@ -129,7 +129,7 @@ class GMM():
 
                 cum_weight = 0
                 for index, order in enumerate(descending_order):
-                    cum_weight += self.weight[i][j][order]
+                    cum_weight += self.weight[i][j][index]
                     if cum_weight > T:
                         self.B[i][j] = index + 1
                         break
@@ -149,10 +149,5 @@ class GMM():
                         # [255, 255, 255] is white, the background color will be set to white
                         result[i][j] = [255, 255, 255]
                         break
-                # gaussian_pixel = self.g_mat.mat[i][j]
-                # for g in range(self.K):
-                #     if self.check(img[i][j], gaussian_pixel[g]) and self.g_mat.weight[i][j][g] > 0.25:
-                #         # [255, 255, 255] is white, the background color will be set to white
-                #         result[i][j] = [255, 255, 255]
-                #         continue
         return result
+
