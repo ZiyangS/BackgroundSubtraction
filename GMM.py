@@ -4,13 +4,12 @@ import os
 from numpy.linalg import norm, inv
 from scipy.stats import multivariate_normal as mv_norm
 
-init_weight = [0.7, 0.1, 0.1, 0.1]
+init_weight = [0.7, 0.11, 0.1, 0.09]
 init_u = np.zeros(3)
 # initial Covariance matrix
 init_sigma = 225*np.eye(3)
-init_alpha = 0.01
-# prevent deviding 0 for stability
-epsilon = 0.00000001
+init_alpha = 0.05
+
 
 
 class GMM():
@@ -75,35 +74,32 @@ class GMM():
             for i in range(img.shape[0]):
                 for j in range(img.shape[1]):
                     # Check whether match the existing K Gaussian distributions
-                    flag = 0
+                    match = -1
                     for k in range(K):
                         if self.check(img[i][j], self.mu[i][j][k], self.sigma[i][j][k]):
-                            flag = 1
-                            m = 1
-                            mu = self.mu[i][j][k]
-                            sigma = self.sigma[i][j][k]
-                            x = img[i][j].astype(np.float)
-                            delta = x - mu
-                            rho = self.alpha * mv_norm.pdf(img[i][j], mu, sigma)
-                            self.weight[i][j][k] = self.weight[i][j][k] + self.alpha*(m - self.weight[i][j][k])
-                            self.mu[i][j][k] = mu + rho*delta
-                            self.sigma[i][j][k] = sigma + rho*(np.matmul(delta, delta.T)-sigma)
-                        else:
-                            m=0
-                            self.weight[i][j][k] = self.weight[i][j][k] + self.alpha*(m-self.weight[i][j][k])
+                            match = k
+                            break
+                    # a match found
+                    if match != -1:
+                        mu = self.mu[i][j][k]
+                        sigma = self.sigma[i][j][k]
+                        x = img[i][j].astype(np.float)
+                        delta = x - mu
+                        rho = self.alpha * mv_norm.pdf(img[i][j], mu, sigma)
+                        self.weight[i][j] = (1 - self.alpha) * self.weight[i][j]
+                        self.weight[i][j][match] += self.alpha
+                        # self.weight[i][j][k] = self.weight[i][j][k] + self.alpha*(m - self.weight[i][j][k])
+                        self.mu[i][j][k] = mu + rho * delta
+                        self.sigma[i][j][k] = sigma + rho * (np.matmul(delta, delta.T) - sigma)
                     # if none of the K distributions match the current value
                     # the least probable distribution is replaced with a distribution
                     # with current value as its mean, an initially high variance and low rior weight
-                    if flag == 0:
+                    if match == -1:
                         w_list = [self.weight[i][j][k] for k in range(K)]
                         id = w_list.index(min(w_list))
                         # weight keep same, replace mean with current value and set high variance
-                        self.mu[i][j][id] = np.array(img[i][j]).reshape(1,3)
+                        self.mu[i][j][id] = np.array(img[i][j]).reshape(1, 3)
                         self.sigma[i][j][id] = np.array(init_sigma)
-                    # normalize the weight
-                    s = sum([self.weight[i][j][k] for k in range(K)])
-                    for k in range(K):
-                        self.weight[i][j][k] /= s
             print('img:{}'.format(img[100][100]))
             print('weight:{}'.format(self.weight[100][100]))
             self.reorder()
@@ -111,7 +107,8 @@ class GMM():
                 print('u:{}'.format(self.mu[100][100][i]))
 
 
-    def reorder(self, T=0.75):
+
+    def reorder(self, T=0.90):
         '''
         reorder the estimated components based on the ratio pi / the norm of standard deviation.
         the first B components are chosen as background components
@@ -134,6 +131,8 @@ class GMM():
                     if cum_weight > T:
                         self.B[i][j] = index + 1
                         break
+                # if self.B[i][j] == self.K:
+                #     self.B[i][j] = self.K - 1
 
 
     def infer(self, img):
